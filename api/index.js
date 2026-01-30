@@ -4,17 +4,24 @@ export default async function handler(req, res) {
   const { gender, age } = req.query;
 
   try {
+    // Fetch data from Google Sheet (published as CSV)
     const response = await fetch(
       "https://docs.google.com/spreadsheets/d/e/2PACX-1vRruBQB-x5T4oK9cWzM4JgAaMY64L06cLFxhObAC_AhzoV2-FXHWIPPU2EnBk6paBPxL5hr0ZlqTlR-/pub?gid=1640780709&single=true&output=csv"
     );
     const csvData = await response.text();
-    const rows = csvData.split("\n").map(r => r.split(","));
-    const data = rows.slice(1);
 
-    // Filter rows matching gender and age (case-insensitive, flexible)
+    // Split CSV into rows and columns
+    const rows = csvData.split("\n").map(r => r.split(","));
+    const data = rows.slice(1); // remove header row
+
+    // Normalize text for flexible matching
+    const normalize = str =>
+      str.toLowerCase().replace(/[\s–-]+/g, ""); // removes spaces and dashes
+
+    // Filter rows that match gender and age (case-insensitive, flexible)
     const results = data.filter(row =>
-      row[0].toLowerCase().includes(gender.toLowerCase()) &&
-      row[1].toLowerCase().includes(age.toLowerCase())
+      normalize(row[0]).includes(normalize(gender)) &&
+      normalize(row[1]).includes(normalize(age))
     );
 
     // If no matches found
