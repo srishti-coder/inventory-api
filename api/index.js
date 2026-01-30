@@ -15,14 +15,13 @@ export default async function handler(req, res) {
     const data = rows.slice(1); // remove header row
 
     // Normalize text for flexible matching
-    const normalize = str =>
-      str.toLowerCase().replace(/[\s–-]+/g, ""); // removes spaces and dashes
+   const normalize = str =>
+  str.toLowerCase().replace(/[\s–-]+/g, ""); // removes spaces and both dash types
 
-    // Filter rows that match gender and age (case-insensitive, flexible)
-    const results = data.filter(row =>
-      normalize(row[0]).includes(normalize(gender)) &&
-      normalize(row[1]).includes(normalize(age))
-    );
+const results = data.filter(row =>
+  normalize(row[0]).includes(normalize(gender)) &&
+  normalize(row[1]).includes(normalize(age))
+);
 
     // If no matches found
     if (results.length === 0) {
