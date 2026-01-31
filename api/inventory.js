@@ -1,9 +1,9 @@
-// import fetch from "node-fetch"; // optional on Node 18+, global fetch exists
+// Node 18+ has global fetch (no need node-fetch)
 
 const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRHF18mla3r-JyQm-Ec1Ex5V6lBNHntH3z5vNGpyPt-M2mm9nqzC-REgMV8gRsXLxM8HbmxJMY__7Xv/pub?output=csv";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRHF18mla3r-JyQm-Ec1Ex5V6lBNHntH3z5vNGpyPt-M2mm9nqzC-REgMV8gRsXLxM8HbmxJMY__7Xv/pub?gid=1805316314&single=true&output=csv";
 
-// Normalize age input
+// Normalize age
 function normalizeAge(ageInput) {
   if (!ageInput) return null;
   const age = String(ageInput).toLowerCase().replace(/\s/g, "");
@@ -12,10 +12,11 @@ function normalizeAge(ageInput) {
   return null;
 }
 
-// Quote-safe CSV splitter
+// CSV parser (quote-safe)
 function splitCSV(line) {
   const out = [];
   let cur = "", inQ = false;
+
   for (let i = 0; i < line.length; i++) {
     const c = line[i], n = line[i + 1];
     if (c === '"' && n === '"') { cur += '"'; i++; continue; }
@@ -30,10 +31,11 @@ function splitCSV(line) {
 function parseCSV(csvText) {
   const lines = csvText.replace(/\r/g, "").trim().split("\n");
   const headers = splitCSV(lines[0]).map(h => h.trim());
+
   return lines.slice(1).map(line => {
     const values = splitCSV(line).map(v => v.trim());
     const obj = {};
-    headers.forEach((h, i) => { obj[h] = values[i] ?? ""; });
+    headers.forEach((h, i) => obj[h] = values[i] ?? "");
     return obj;
   });
 }
@@ -41,34 +43,51 @@ function parseCSV(csvText) {
 export default async function handler(req, res) {
   try {
     const { gender, age } = req.query;
+
     if (!gender || !age) {
-      return res.status(400).json({ available: false, message: "gender and age are required" });
+      return res.status(400).json({
+        available: false,
+        message: "gender and age are required"
+      });
     }
 
-    const normalizedGender = String(gender).trim().toLowerCase();
+    const normalizedGender = String(gender).toLowerCase().trim();
     const normalizedAge = normalizeAge(age);
-    if (!normalizedAge) return res.json({ available: false, message: "Invalid age group" });
+    if (!normalizedAge) {
+      return res.json({ available: false, message: "Invalid age group" });
+    }
 
     const response = await fetch(SHEET_CSV_URL, { cache: "no-store" });
-    if (!response.ok) throw new Error(`Fetch failed ${response.status}`);
     const csvText = await response.text();
 
     const inventory = parseCSV(csvText);
 
     const matches = inventory.filter(row => {
       const rowGender = String(row.Gender || "").toLowerCase().trim();
-      const rowAge = String(row.Age || "").toLowerCase().replace(/\s+/g, " ").trim();
-      const wantAge = normalizedAge.toLowerCase().replace(/\s+/g, " ").trim();
-      return rowGender === normalizedGender && rowAge === wantAge;
+      const rowAge = String(row.Age || "").toLowerCase().trim();
+      return rowGender === normalizedGender && rowAge === normalizedAge;
     });
 
-    if (matches.length === 0) return res.json({ available: false, message: "Not available" });
+    if (matches.length === 0) {
+      return res.json({ available: false, message: "Not available" });
+    }
 
-    const totalQuantity = matches.reduce((sum, r) => sum + (Number((r.Quantity || "").toString().replace(/[^\d.-]/g, "")) || 0), 0);
-    return res.json({ available: totalQuantity > 0, quantity: totalQuantity });
+    const quantity = matches.reduce(
+      (sum, r) => sum + Number(r.Quantity || 0),
+      0
+    );
+
+    return res.json({
+      available: quantity > 0,
+      quantity
+    });
+
   } catch (err) {
     console.error("ERROR:", err);
-    return res.status(500).json({ available: false, message: "Server error" });
+    return res.status(500).json({
+      available: false,
+      message: "Server error"
+    });
   }
 }
 
