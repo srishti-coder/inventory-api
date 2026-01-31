@@ -1,39 +1,33 @@
-// ✅ Correct Google Sheet CSV URL (from your screenshot)
+
+// ✅ Correct Google Sheet CSV URL
 const SHEET_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRHF18mla3r-JyQm-Ec1Ex5V6lBNHntH3z5vNGpyPt-M2mm9nqzC-REgMV8gRsXLxM8HbmxJMY__7Xv/pub?output=csv";
 
 /* ------------------ HELPERS ------------------ */
 
-// Normalize age input from query
-function normalizeAge(ageInput) {
-  if (!ageInput) return null;
-  const a = String(ageInput)
-    .toLowerCase()
-    .replace(/\u00a0/g, " ")   // non-breaking space
-    .replace(/[-–—]/g, "-")    // fancy hyphens
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (a.includes("2-4")) return "2-4 years";
-  if (a.includes("4-6")) return "4-6 years";
-  return null;
-}
-
-// Normalize ANY text (CSV + input) safely
+// Normalize text (for both CSV and query)
 function normalizeText(str) {
   return String(str || "")
     .toLowerCase()
-    .replace(/\u00a0/g, " ")   // NBSP
-    .replace(/[-–—]/g, "-")    // long hyphens
-    .replace(/\s+/g, " ")
+    .replace(/\u00a0/g, " ") // non-breaking space
+    .replace(/[-–—]/g, "-")  // normalize hyphens
+    .replace(/\s+/g, " ")    // collapse multiple spaces
     .trim();
+}
+
+// Normalize age input from query
+function normalizeAge(ageInput) {
+  if (!ageInput) return null;
+  const a = normalizeText(ageInput);
+  if (a.includes("2-4")) return "2-4 years";
+  if (a.includes("4-6")) return "4-6 years";
+  return null;
 }
 
 // Quote-safe CSV splitter
 function splitCSV(line) {
   const out = [];
   let cur = "", inQ = false;
-
   for (let i = 0; i < line.length; i++) {
     const c = line[i], n = line[i + 1];
     if (c === '"' && n === '"') { cur += '"'; i++; continue; }
@@ -49,7 +43,6 @@ function splitCSV(line) {
 function parseCSV(csvText) {
   const lines = csvText.replace(/\r/g, "").trim().split("\n");
   const headers = splitCSV(lines[0]).map(h => h.trim());
-
   return lines.slice(1).map(line => {
     const values = splitCSV(line).map(v => v.trim());
     const obj = {};
@@ -80,20 +73,15 @@ export default async function handler(req, res) {
 
     // Fetch CSV
     const response = await fetch(SHEET_CSV_URL, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`CSV fetch failed: ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`CSV fetch failed: ${response.status}`);
     const csvText = await response.text();
 
     // Parse + clean rows
     const inventory = parseCSV(csvText).filter(row =>
-      row.Gender &&
-      row.Age &&
-      !isNaN(Number(String(row.Quantity).replace(/[^\d]/g, "")))
+      row.Gender && row.Age && row.Quantity
     );
 
-    // Match rows
+    // Match rows (case-insensitive, space-insensitive)
     const matches = inventory.filter(row => {
       const rowGender = normalizeText(row.Gender);
       const rowAge = normalizeText(row.Age);
