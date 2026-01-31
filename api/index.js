@@ -1,30 +1,44 @@
-import fetch from "node-fetch";
-import { parse } from "csv-parse/sync";
-
 export default async function handler(req, res) {
   const { gender, age } = req.query;
 
   if (!gender || !age) {
-    return res.status(400).json({ error: "gender and age are required" });
+    return res.status(400).json({
+      error: "gender and age are required"
+    });
   }
 
   try {
     const response = await fetch(
-      "https://docs.google.com/spreadsheets/d/e/2PACX-1vRruBQB-x5T4oK9cWzM4JgAaMY64L06cLFxhObAC_AhzoV2-FXHWIPPU2EnBk6paBPxL5hr0ZlqTlR-/pub?gid=1640780709&single=true&output=csv"
+      "https://docs.google.com/spreadsheets/d/1Q1CAOfaCQeNrYWkZ9XfSoz71N3P7fG-mfGrQ7zsiYiY/export?format=csv&gid=1640780709"
     );
+
     const csvText = await response.text();
 
-    // Parse CSV safely using csv-parse
-    const records = parse(csvText, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true
+    // ---------- SAFE CSV PARSE (NO LIBS) ----------
+    const lines = csvText
+      .split("\n")
+      .map(l => l.replace("\r", "").trim())
+      .filter(Boolean);
+
+    const headers = lines[0].split(",").map(h => h.trim());
+
+    const rows = lines.slice(1).map(line => {
+      const values = line.split(",").map(v => v.trim());
+      const obj = {};
+      headers.forEach((h, i) => {
+        obj[h] = values[i];
+      });
+      return obj;
     });
+    // ---------------------------------------------
 
     const normalize = v =>
-      String(v).toLowerCase().replace(/[\s–-]+/g, "").replace(/years?/g, "");
+      String(v)
+        .toLowerCase()
+        .replace(/years?/g, "")
+        .replace(/[\s–-]+/g, "");
 
-    const matches = records.filter(
+    const matches = rows.filter(
       row =>
         normalize(row.Gender) === normalize(gender) &&
         normalize(row.Age) === normalize(age)
@@ -46,10 +60,12 @@ export default async function handler(req, res) {
       age,
       available_designs: designs
     });
+
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Failed to fetch inventory data" });
+    console.error("Inventory API Error:", err);
+    return res.status(500).json({
+      error: "Failed to fetch inventory data"
+    });
   }
 }
-
 
