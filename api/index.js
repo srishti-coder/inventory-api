@@ -5,9 +5,6 @@ export default async function handler(req, res) {
     return res.status(400).json({
       error: "gender and age are required"
     });
-    return res.status(400).json({
-      error: "gender and age are required"
-    });
   }
 
   try {
@@ -40,7 +37,6 @@ export default async function handler(req, res) {
         .replace(/[\s–-]+/g, "");
 
     const matches = rows.filter(
-    const matches = rows.filter(
       row =>
         normalize(row.Gender) === normalize(gender) &&
         normalize(row.Age) === normalize(age)
@@ -64,10 +60,11 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    console.error("Inventory API Error:", err);
+    console.error(err);
     return res.status(500).json({
       error: "Failed to fetch inventory data"
     });
   }
 }
+
 
