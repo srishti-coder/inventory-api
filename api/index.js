@@ -5,6 +5,9 @@ export default async function handler(req, res) {
     return res.status(400).json({
       error: "gender and age are required"
     });
+    return res.status(400).json({
+      error: "gender and age are required"
+    });
   }
 
   try {
@@ -14,7 +17,6 @@ export default async function handler(req, res) {
 
     const csvText = await response.text();
 
-    // ---------- SAFE CSV PARSE (NO LIBS) ----------
     const lines = csvText
       .split("\n")
       .map(l => l.replace("\r", "").trim())
@@ -30,7 +32,6 @@ export default async function handler(req, res) {
       });
       return obj;
     });
-    // ---------------------------------------------
 
     const normalize = v =>
       String(v)
@@ -38,6 +39,7 @@ export default async function handler(req, res) {
         .replace(/years?/g, "")
         .replace(/[\s–-]+/g, "");
 
+    const matches = rows.filter(
     const matches = rows.filter(
       row =>
         normalize(row.Gender) === normalize(gender) &&
