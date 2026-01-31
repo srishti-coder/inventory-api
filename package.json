@@ -1,15 +1,6 @@
 {
   "name": "inventory-api",
   "version": "1.0.0",
-  "description": "API to fetch inventory data from Google Sheets for MyOperator bot",
   "type": "module",
-  "scripts": {
-    "start": "node api/index.js"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "author": "Srishti Mishra",
-  "license": "MIT"
+  "dependencies": {}
 }
-
