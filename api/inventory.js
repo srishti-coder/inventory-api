@@ -1,4 +1,4 @@
-// 
+// ✅ Correct Google Sheet CSV URL (from your screenshot)
 const SHEET_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRHF18mla3r-JyQm-Ec1Ex5V6lBNHntH3z5vNGpyPt-M2mm9nqzC-REgMV8gRsXLxM8HbmxJMY__7Xv/pub?output=csv";
 
@@ -10,11 +10,12 @@ function normalizeAge(ageInput) {
   const a = String(ageInput)
     .toLowerCase()
     .replace(/\u00a0/g, " ")   // non-breaking space
-    .replace(/[-–—]/g, "_")    // fancy hyphens
-    .replace(/\s+/g, "_");     // spaces to underscores
+    .replace(/[-–—]/g, "-")    // fancy hyphens
+    .replace(/\s+/g, " ")
+    .trim();
 
-  if (a.includes("2_4")) return "2-4 years";
-  if (a.includes("4_6")) return "4-6 years";
+  if (a.includes("2-4")) return "2-4 years";
+  if (a.includes("4-6")) return "4-6 years";
   return null;
 }
 
