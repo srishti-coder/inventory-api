@@ -56,7 +56,8 @@ export default async function handler(req, res) {
   try {
     console.log("🔥 INVENTORY API HIT");
 
-    const { gender, age } = req.query;
+    const { gender, age, design } = req.query;
+
     if (!gender || !age) {
       return res.status(400).json({
         available: false,
@@ -66,6 +67,8 @@ export default async function handler(req, res) {
 
     const wantGender = normalizeText(gender);
     const wantAgeBand = normalizeAgeBand(age);
+    const wantDesign = design ? normalizeText(design) : null;
+
     if (!wantAgeBand) {
       return res.json({ available: false, message: "Invalid age group" });
     }
@@ -76,13 +79,18 @@ export default async function handler(req, res) {
     const csvText = await response.text();
     const rows = parseCSV(csvText);
 
-    const matches = rows.filter(r =>
-      normalizeText(r.gender) === wantGender &&
-      normalizeText(r.age).includes(wantAgeBand)
-    );
+    const matches = rows.filter(r => {
+      const genderOk = normalizeText(r.gender) === wantGender;
+      const ageOk = normalizeText(r.age).includes(wantAgeBand);
+      const designOk = wantDesign
+        ? normalizeText(r.design) === wantDesign
+        : true;
+
+      return genderOk && ageOk && designOk;
+    });
 
     if (!matches.length) {
-      return res.json({ available: false, message: "Not available" });
+      return res.json({ available: false, quantity: 0 });
     }
 
     const quantity = matches.reduce(
@@ -103,7 +111,3 @@ export default async function handler(req, res) {
     });
   }
 }
-
-
-
-
