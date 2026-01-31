@@ -1,9 +1,9 @@
-// Node 18+ has global fetch (no need node-fetch)
+
 
 const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRHF18mla3r-JyQm-Ec1Ex5V6lBNHntH3z5vNGpyPt-M2mm9nqzC-REgMV8gRsXLxM8HbmxJMY__7Xv/pub?gid=1805316314&single=true&output=csv";
+  "https://docs.google.com/spreadsheets/d/2PACX-1vRHF18mla3r-JyQm-Ec1Ex5V6lBNHntH3z5vNGpyPt-M2mm9nqzC-REgMV8gRsXLxM8HbmxJMY__7Xv/export?format=csv&gid=1805316314";
 
-// Normalize age
+// ---------- Normalize age ----------
 function normalizeAge(ageInput) {
   if (!ageInput) return null;
   const age = String(ageInput).toLowerCase().replace(/\s/g, "");
@@ -12,11 +12,10 @@ function normalizeAge(ageInput) {
   return null;
 }
 
-// CSV parser (quote-safe)
+// ---------- CSV helpers ----------
 function splitCSV(line) {
   const out = [];
   let cur = "", inQ = false;
-
   for (let i = 0; i < line.length; i++) {
     const c = line[i], n = line[i + 1];
     if (c === '"' && n === '"') { cur += '"'; i++; continue; }
@@ -35,11 +34,12 @@ function parseCSV(csvText) {
   return lines.slice(1).map(line => {
     const values = splitCSV(line).map(v => v.trim());
     const obj = {};
-    headers.forEach((h, i) => obj[h] = values[i] ?? "");
+    headers.forEach((h, i) => { obj[h] = values[i] ?? ""; });
     return obj;
   });
 }
 
+// ---------- API ----------
 export default async function handler(req, res) {
   try {
     const { gender, age } = req.query;
@@ -57,14 +57,20 @@ export default async function handler(req, res) {
       return res.json({ available: false, message: "Invalid age group" });
     }
 
+    // Fetch CSV
     const response = await fetch(SHEET_CSV_URL, { cache: "no-store" });
-    const csvText = await response.text();
+    if (!response.ok) {
+      throw new Error(`CSV fetch failed: ${response.status}`);
+    }
 
-    const inventory = parseCSV(csvText);
+    const csvText = await response.text();
+    const inventory = parseCSV(csvText).filter(
+      r => r.Gender && r.Age && !isNaN(Number(r.Quantity))
+    );
 
     const matches = inventory.filter(row => {
-      const rowGender = String(row.Gender || "").toLowerCase().trim();
-      const rowAge = String(row.Age || "").toLowerCase().trim();
+      const rowGender = String(row.Gender).toLowerCase().trim();
+      const rowAge = String(row.Age).toLowerCase().trim();
       return rowGender === normalizedGender && rowAge === normalizedAge;
     });
 
@@ -73,7 +79,7 @@ export default async function handler(req, res) {
     }
 
     const quantity = matches.reduce(
-      (sum, r) => sum + Number(r.Quantity || 0),
+      (sum, r) => sum + Number(r.Quantity),
       0
     );
 
