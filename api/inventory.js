@@ -15,10 +15,12 @@ function normalizeText(str) {
     .trim();
 }
 
-// Normalize age input from query
 function normalizeAge(ageInput) {
   if (!ageInput) return null;
-  const a = normalizeText(ageInput);
+  const a = normalizeText(ageInput)
+    .replace(/to/g, "-")   // handle "2 to 4"
+    .replace(/\s+/g, "-"); // handle spaces around numbers
+
   if (a.includes("2-4")) return "2-4 years";
   if (a.includes("4-6")) return "4-6 years";
   return null;
