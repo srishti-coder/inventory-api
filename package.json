@@ -1,6 +1,11 @@
 {
   "name": "inventory-api",
   "version": "1.0.0",
+  "description": "Inventory API using Google Sheets for MyOperator bot",
   "type": "module",
-  "dependencies": {}
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Srishti Mishra",
+  "license": "MIT"
 }

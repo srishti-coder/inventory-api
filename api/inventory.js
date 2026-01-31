@@ -1,28 +1,98 @@
+import fetch from "node-fetch";
+
+const SHEET_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/YOUR_SHEET_ID/pub?output=csv";
+
+// ---------- Utility: Normalize Age ----------
+function normalizeAge(ageInput) {
+  if (!ageInput) return null;
+
+  const age = ageInput.toLowerCase().trim();
+
+  if (age.includes("2-4")) return "2-4 years";
+  if (age.includes("4-6")) return "4-6 years";
+
+  return null;
+}
+
+// ---------- Utility: Parse CSV ----------
+function parseCSV(csvText) {
+  const lines = csvText.split("\n");
+  const headers = lines[0].split(",").map(h => h.trim());
+
+  return lines.slice(1).map(line => {
+    const values = line.split(",").map(v => v.trim());
+    const row = {};
+    headers.forEach((h, i) => {
+      row[h] = values[i];
+    });
+    return row;
+  });
+}
+
+// ---------- API Handler ----------
 export default async function handler(req, res) {
-  const { gender, age } = req.query;
-  if (!gender || !age) return res.status(400).json({ error: "gender and age are required" });
-
   try {
-    const response = await fetch("https://docs.google.com/spreadsheets/d/1Q1CAOfaCQeNrYWkZ9XfSoz71N3P7fG-mfGrQ7zsiYiY/export?format=csv&gid=1640780709");
-    const csvText = await response.text();
+    const { gender, age, design } = req.query;
 
-    const lines = csvText.split("\n").map(l => l.replace("\r", "").trim()).filter(Boolean);
-    const headers = lines[0].split(",").map(h => h.trim());
-    const rows = lines.slice(1).map(line => {
-      const values = line.split(",").map(v => v.trim());
-      const o = {}; headers.forEach((h, i) => { o[h] = values[i]; }); return o;
+    if (!gender || !age) {
+      return res.status(400).json({
+        error: "gender and age are required"
+      });
+    }
+
+    // Normalize inputs
+    const normalizedGender = gender.toLowerCase().trim();
+    const normalizedAge = normalizeAge(age);
+
+    if (!normalizedAge) {
+      return res.json({
+        available: false,
+        message: "Invalid age group"
+      });
+    }
+
+    // Fetch CSV
+    const response = await fetch(SHEET_CSV_URL);
+    const csvText = await response.text();
+    const inventory = parseCSV(csvText);
+
+    // Find matching rows
+    const matches = inventory.filter(item => {
+      return (
+        item.Gender.toLowerCase() === normalizedGender &&
+        item.Age.toLowerCase() === normalizedAge.toLowerCase() &&
+        (!design || item.Design === design)
+      );
     });
 
-    const normalize = v => String(v).toLowerCase().replace(/years?/g, "").replace(/[\s–-]+/g, "");
-    const matches = rows.filter(r => normalize(r.Gender) === normalize(gender) && normalize(r.Age) === normalize(age));
+    if (matches.length === 0) {
+      return res.json({
+        available: false,
+        message: "Not available"
+      });
+    }
 
-    if (!matches.length) return res.status(200).json({ message: `No designs available for ${gender} aged ${age}` });
+    // Sum quantity (safe)
+    const totalQuantity = matches.reduce(
+      (sum, item) => sum + Number(item.Quantity || 0),
+      0
+    );
 
-    const designs = matches.map(r => ({ design: r.Design, quantity: Number(r.Quantity) }));
-    return res.status(200).json({ gender, age, available_designs: designs });
-  } catch (e) {
-    return res.status(500).json({ error: "Failed to fetch inventory data" });
+    return res.json({
+      available: true,
+      quantity: totalQuantity,
+      designs: matches.map(item => item.Design)
+    });
+
+  } catch (error) {
+    console.error("Error:", error);
+    return res.status(500).json({
+      error: "Internal server error"
+    });
   }
 }
+
+
 
 
