@@ -1,34 +1,29 @@
+// api/inventory.js
+// Node 18+ (Vercel) has global fetch
 
-// ✅ Correct Google Sheet CSV URL
+// ✅ ONLY CORRECT CSV URL
 const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRHF18mla3r-JyQm-Ec1Ex5V6lBNHntH3z5vNGpyPt-M2mm9nqzC-REgMV8gRsXLxM8HbmxJMY__7Xv/pub?output=csv";
+  "https://docs.google.com/spreadsheets/d/1ktQ7AeuVQRtMNqO0_RLUCaOAaxeGKU5eCh2aqdlwRHs/export?format=csv&gid=1805316314";
 
 /* ------------------ HELPERS ------------------ */
 
-// Normalize text (for both CSV and query)
 function normalizeText(str) {
   return String(str || "")
     .toLowerCase()
-    .replace(/\u00a0/g, " ") // non-breaking space
-    .replace(/[-–—]/g, "-")  // normalize hyphens
-    .replace(/\s+/g, " ")    // collapse multiple spaces
+    .replace(/\u00a0/g, " ")
+    .replace(/[-–—]/g, "-")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
 function normalizeAge(ageInput) {
   if (!ageInput) return null;
-  const a = normalizeText(ageInput)
-    .replace(/to/g, "-")
-    .replace(/\s+/g, "-");
-
+  const a = normalizeText(ageInput).replace(/\s/g, "");
   if (a.includes("2-4")) return "2-4 years";
   if (a.includes("4-6")) return "4-6 years";
-  if (a.includes("2-4-years")) return "2-4 years";
-  if (a.includes("4-6-years")) return "4-6 years";
   return null;
 }
 
-// Quote-safe CSV splitter
 function splitCSV(line) {
   const out = [];
   let cur = "", inQ = false;
@@ -43,14 +38,14 @@ function splitCSV(line) {
   return out;
 }
 
-// Parse CSV into objects
 function parseCSV(csvText) {
   const lines = csvText.replace(/\r/g, "").trim().split("\n");
-  const headers = splitCSV(lines[0]).map(h => h.trim());
+  const headers = splitCSV(lines[0]).map(h => h.toLowerCase().trim());
+
   return lines.slice(1).map(line => {
     const values = splitCSV(line).map(v => v.trim());
     const obj = {};
-    headers.forEach((h, i) => { obj[h] = values[i] ?? ""; });
+    headers.forEach((h, i) => (obj[h] = values[i] ?? ""));
     return obj;
   });
 }
@@ -70,51 +65,41 @@ export default async function handler(req, res) {
 
     const wantGender = normalizeText(gender);
     const wantAge = normalizeText(normalizeAge(age));
-
     if (!wantAge) {
       return res.json({ available: false, message: "Invalid age group" });
     }
 
-    // Fetch CSV
     const response = await fetch(SHEET_CSV_URL, { cache: "no-store" });
     if (!response.ok) throw new Error(`CSV fetch failed: ${response.status}`);
-    const csvText = await response.text();
 
-    // Parse + clean rows
-    const inventory = parseCSV(csvText).filter(row =>
-      row.Gender && row.Age && row.Quantity
+    const csvText = await response.text();
+    const rows = parseCSV(csvText);
+
+    const matches = rows.filter(r =>
+      normalizeText(r.gender) === wantGender &&
+      normalizeText(r.age) === wantAge
     );
 
-    // Match rows (case-insensitive, space-insensitive)
-    const matches = inventory.filter(row => {
-      const rowGender = normalizeText(row.Gender);
-      const rowAge = normalizeText(row.Age);
-      return rowGender === wantGender && rowAge === wantAge;
-    });
-
-    if (matches.length === 0) {
+    if (!matches.length) {
       return res.json({ available: false, message: "Not available" });
     }
 
-    // Sum quantity
     const quantity = matches.reduce(
-      (sum, r) => sum + Number(String(r.Quantity).replace(/[^\d]/g, "")),
+      (sum, r) => sum + Number(String(r.quantity).replace(/[^\d]/g, "")),
       0
     );
 
-    return res.json({
-      available: quantity > 0,
-      quantity
-    });
+    return res.json({ available: quantity > 0, quantity });
 
   } catch (err) {
-    console.error("ERROR:", err);
+    console.error(err);
     return res.status(500).json({
       available: false,
       message: "Server error"
     });
   }
 }
+
 
 
 
