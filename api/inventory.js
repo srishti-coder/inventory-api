@@ -18,11 +18,13 @@ function normalizeText(str) {
 function normalizeAge(ageInput) {
   if (!ageInput) return null;
   const a = normalizeText(ageInput)
-    .replace(/to/g, "-")   // handle "2 to 4"
-    .replace(/\s+/g, "-"); // handle spaces around numbers
+    .replace(/to/g, "-")
+    .replace(/\s+/g, "-");
 
   if (a.includes("2-4")) return "2-4 years";
   if (a.includes("4-6")) return "4-6 years";
+  if (a.includes("2-4-years")) return "2-4 years";
+  if (a.includes("4-6-years")) return "4-6 years";
   return null;
 }
 
