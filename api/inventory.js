@@ -1,6 +1,6 @@
-// ✅ Correct Google Sheet CSV URL
+// 
 const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/1ktQ7AeuVQRtMNqQ0_RLUca0AAaxeGKU5eCh2aqd1wRHs/pub?output=csv&gid=1805316314";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRHF18mla3r-JyQm-Ec1Ex5V6lBNHntH3z5vNGpyPt-M2mm9nqzC-REgMV8gRsXLxM8HbmxJMY__7Xv/pub?output=csv";
 
 /* ------------------ HELPERS ------------------ */
 
