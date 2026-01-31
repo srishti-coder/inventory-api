@@ -57,6 +57,7 @@ function parseCSV(csvText) {
 /* ---------------- API ---------------- */
 
 export default async function handler(req, res) {
+  console.log(" INVENTORY API VERSION = v9-final");
   try {
     const { gender, age } = req.query;
 
