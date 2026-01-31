@@ -1,52 +1,44 @@
+import fetch from "node-fetch";
+import { parse } from "csv-parse/sync";
+
 export default async function handler(req, res) {
   const { gender, age } = req.query;
+
   if (!gender || !age) {
     return res.status(400).json({ error: "gender and age are required" });
   }
 
   try {
-    const SHEET_CSV =
-      "https://docs.google.com/spreadsheets/d/1Q1CAOfaCQeNrYWkZ9XfSoz71N3P7fG-mfGrQ7zsiYiY/export?format=csv&gid=1640780709";
+    const response = await fetch(
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vRruBQB-x5T4oK9cWzM4JgAaMY64L06cLFxhObAC_AhzoV2-FXHWIPPU2EnBk6paBPxL5hr0ZlqTlR-/pub?gid=1640780709&single=true&output=csv"
+    );
+    const csvText = await response.text();
 
-    const r = await fetch(SHEET_CSV, { cache: "no-store" });
-    if (!r.ok) throw new Error(`CSV fetch failed: ${r.status}`);
-    const csv = (await r.text()).replace(/\r/g, "").trim();
-
-    // CSV -> rows (handles quoted commas)
-    const lines = csv.split("\n");
-    const splitCSV = (line) =>
-      line
-        .match(/("([^"]|"")*"|[^,])+/g) // groups respecting quotes
-        .map(s => {
-          let v = s.trim();
-          if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1).replace(/""/g, '"');
-          return v;
-        });
-
-    const headers = splitCSV(lines[0]).map(h => h.replace(/^\uFEFF/, "").trim()); // strip BOM if any
-    const rows = lines.slice(1).filter(Boolean).map(line => {
-      const vals = splitCSV(line);
-      const obj = {};
-      headers.forEach((h, i) => (obj[h] = vals[i] ?? ""));
-      return obj;
+    // Parse CSV safely using csv-parse
+    const records = parse(csvText, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true
     });
 
-    const normalize = v => String(v || "")
-      .toLowerCase()
-      .replace(/[\s–-]+/g, ""); // ignore spaces and dash types
+    const normalize = v =>
+      String(v).toLowerCase().replace(/[\s–-]+/g, "").replace(/years?/g, "");
 
-    const matches = rows.filter(row =>
-      normalize(row.Gender) === normalize(gender) &&
-      normalize(row.Age) === normalize(age)
+    const matches = records.filter(
+      row =>
+        normalize(row.Gender) === normalize(gender) &&
+        normalize(row.Age) === normalize(age)
     );
 
     if (matches.length === 0) {
-      return res.status(200).json({ message: `No designs available for ${gender} aged ${age}` });
+      return res.status(200).json({
+        message: `No designs available for ${gender} aged ${age}`
+      });
     }
 
-    const designs = matches.map(r => ({
-      design: r.Design,
-      quantity: Number(r.Quantity || 0)
+    const designs = matches.map(row => ({
+      design: row.Design,
+      quantity: Number(row.Quantity)
     }));
 
     return res.status(200).json({
@@ -54,9 +46,10 @@ export default async function handler(req, res) {
       age,
       available_designs: designs
     });
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ error: "Failed to fetch inventory data" });
   }
 }
+
 
