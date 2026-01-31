@@ -37,6 +37,11 @@ function splitCSV(line) {
   return out;
 }
 
+/**
+ * 🔥 IMPORTANT FIX:
+ * Headers are converted to lowercase
+ * So Gender → gender, Age → age, Quantity → quantity
+ */
 function parseCSV(csvText) {
   const lines = csvText.replace(/\r/g, "").trim().split("\n");
   const headers = splitCSV(lines[0]).map(h => h.toLowerCase().trim());
@@ -75,22 +80,36 @@ export default async function handler(req, res) {
     const csvText = await response.text();
     const rows = parseCSV(csvText);
 
-    // 
+    // ✅ NOW THIS WILL WORK
     const matches = rows.filter(r => {
       const rowGender = normalizeText(r.gender);
       const rowAge = normalizeText(r.age);
-
-      return (
-        rowGender === wantGender &&
-        rowAge.includes(wantAgeBand)   // <-- THIS FIXES EVERYTHING
-      );
+      return rowGender === wantGender && rowAge.includes(wantAgeBand);
     });
 
     if (!matches.length) {
       return res.json({ available: false, message: "Not available" });
     }
 
-    const quantity
+    const quantity = matches.reduce(
+      (sum, r) => sum + Number(String(r.quantity).replace(/[^\d]/g, "")),
+      0
+    );
+
+    return res.json({
+      available: quantity > 0,
+      quantity
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      available: false,
+      message: "Server error"
+    });
+  }
+}
+
 
 
 
