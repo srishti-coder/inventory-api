@@ -1,135 +1,105 @@
-// api/inventory.js
-// Runs on Vercel (Node 18+). No local Node/npm required.
-
-const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/1ktQ7AeuVQRtMNqO0_RLUCaOAaxeGKU5eCh2aqdlwRHs/export?format=csv&gid=1805316314";
-
-/* ---------------- HELPERS ---------------- */
-
-function normalizeText(str) {
-  return String(str || "")
-    .toLowerCase()
-    .replace(/\u00a0/g, " ")
-    .replace(/[–—]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function normalizeAgeBand(ageInput) {
-  if (!ageInput) return null;
-
-  const a = String(ageInput)
-    .toLowerCase()
-    .replace(/[–—]/g, "-")
-    .replace(/\s/g, "");
-
-  if (a.includes("2-4")) return "2-4";
-  if (a.includes("4-6")) return "4-6";
-
-  return null;
-}
-
-// Safe CSV split (handles quoted commas)
-function splitCSV(line) {
-  const out = [];
-  let cur = "", inQ = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i], n = line[i + 1];
-
-    if (c === '"' && n === '"') {
-      cur += '"';
-      i++;
-      continue;
-    }
-    if (c === '"') {
-      inQ = !inQ;
-      continue;
-    }
-    if (c === "," && !inQ) {
-      out.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += c;
-  }
-  out.push(cur);
-  return out;
-}
-
-function parseCSV(csvText) {
-  const lines = csvText.replace(/\r/g, "").trim().split("\n");
-  const headers = splitCSV(lines[0]).map(h => h.toLowerCase().trim());
-
-  return lines.slice(1).map(line => {
-    const values = splitCSV(line).map(v => v.trim());
-    const obj = {};
-    headers.forEach((h, i) => {
-      obj[h] = values[i] ?? "";
-    });
-    return obj;
-  });
-}
-
-/* ---------------- API ---------------- */
-
 export default async function handler(req, res) {
   try {
-    const { gender, age, design } = req.query;
+    let { gender, age, design } = req.query;
 
+    // ------------------------------
+    // 1️⃣ BASIC VALIDATION
+    // ------------------------------
     if (!gender || !age) {
-      return res.status(400).json({
+      return res.status(200).json({
         available: false,
-        message: "gender and age are required"
+        message: "Gender or age missing"
       });
     }
 
-    const wantGender = normalizeText(gender);
-    const wantAgeBand = normalizeAgeBand(age);
-    const wantDesign = design ? normalizeText(design) : null;
+    // ------------------------------
+    // 2️⃣ NORMALIZE INPUTS
+    // ------------------------------
+    gender = gender.trim().toLowerCase();
 
-    if (!wantAgeBand) {
-      return res.json({
-        available: false,
-        message: "Invalid age group"
-      });
+    age = age.trim();
+    if (age === "2-4") age = "2-4 years";
+    if (age === "4-6") age = "4-6 years";
+
+    if (design) {
+      design = design.trim().toUpperCase();
     }
 
-    const response = await fetch(SHEET_CSV_URL, { cache: "no-store" });
-    if (!response.ok) throw new Error("CSV fetch failed");
+    // ------------------------------
+    // 3️⃣ FETCH GOOGLE SHEET (CSV)
+    // ------------------------------
+    const sheetUrl =
+      "https://docs.google.com/spreadsheets/d/1ktQ7AeuVQRtMNqO0_RLUCaOAaxeGKUseCh2aqdlwRHs/export?format=csv";
 
+    const response = await fetch(sheetUrl);
     const csvText = await response.text();
-    const rows = parseCSV(csvText);
 
-    const matches = rows.filter(r => {
-      const genderOk = normalizeText(r.gender) === wantGender;
-      const ageOk = normalizeText(r.age).includes(wantAgeBand);
-      const designOk = wantDesign
-        ? normalizeText(r.design) === wantDesign
-        : true;
+    // ------------------------------
+    // 4️⃣ PARSE CSV SAFELY
+    // ------------------------------
+    const lines = csvText
+      .split("\n")
+      .map(l => l.replace("\r", "").trim())
+      .filter(Boolean);
 
-      return genderOk && ageOk && designOk;
+    const headers = lines[0].split(",").map(h => h.trim());
+
+    const rows = lines.slice(1).map(line => {
+      const values = line.split(",").map(v => v.trim());
+      const obj = {};
+      headers.forEach((h, i) => {
+        obj[h] = values[i];
+      });
+      return obj;
     });
 
-    if (!matches.length) {
-      return res.json({
+    // ------------------------------
+    // 5️⃣ FILTER BY GENDER + AGE
+    // ------------------------------
+    const filtered = rows.filter(r =>
+      r.Gender.toLowerCase() === gender &&
+      r.Age === age
+    );
+
+    if (filtered.length === 0) {
+      return res.status(200).json({
         available: false,
-        quantity: 0,
-        designs: []
+        message: `No pieces available for ${gender} aged ${age}`
       });
     }
 
-    const quantity = matches.reduce(
-      (sum, r) =>
-        sum + Number(String(r.quantity).replace(/[^\d]/g, "")),
-      0
-    );
+    // ------------------------------
+    // 6️⃣ IF DESIGN ASKED → CHECK IT
+    // ------------------------------
+    if (design) {
+      const designRow = filtered.find(
+        r => r.Design.toUpperCase() === design
+      );
 
-    const designs = [...new Set(matches.map(r => r.design))];
+      if (!designRow || Number(designRow.Quantity) === 0) {
+        return res.status(200).json({
+          available: false,
+          message: `Design ${design} is not available for ${gender} aged ${age}`
+        });
+      }
 
-    return res.json({
-      available: quantity > 0,
-      quantity,
+      return res.status(200).json({
+        available: true,
+        quantity: Number(designRow.Quantity),
+        designs: [design]
+      });
+    }
+
+    // ------------------------------
+    // 7️⃣ IF NO DESIGN ASKED → RETURN ALL
+    // ------------------------------
+    const designs = filtered
+      .filter(r => Number(r.Quantity) > 0)
+      .map(r => r.Design);
+
+    return res.status(200).json({
+      available: designs.length > 0,
+      quantity: designs.length > 0 ? Number(filtered[0].Quantity) : 0,
       designs
     });
 
@@ -137,8 +107,7 @@ export default async function handler(req, res) {
     console.error(err);
     return res.status(500).json({
       available: false,
-      message: "Server error"
+      message: "Internal server error"
     });
   }
 }
-
