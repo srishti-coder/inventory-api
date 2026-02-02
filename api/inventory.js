@@ -26,13 +26,16 @@ export default async function handler(req, res) {
     /* -------------------- AGE NORMALIZATION -------------------- */
 
     // Accept: "2-4", "2–4", "2 to 4", "2 - 4"
-    let ageMatch = null;
-    if (age) {
-      ageMatch = age.match(/(\d+)\s*(?:to|[-–—])\s*(\d+)/i);
-    }
-    if (ageMatch) {
-      age = `${ageMatch[1]}-${ageMatch[2]} years`;
-    }
+ let ageMatch = null;
+
+if (typeof age === "string" && age.trim() !== "") {
+  ageMatch = age.match(/(\d+)\s*(?:to|[-–—])\s*(\d+)/i);
+}
+
+if (ageMatch) {
+  age = `${ageMatch[1]}-${ageMatch[2]} years`;
+}
+
 
     /* -------------------- FETCH INVENTORY -------------------- */
 
