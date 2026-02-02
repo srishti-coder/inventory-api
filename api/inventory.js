@@ -39,22 +39,24 @@ if (ageMatch) {
 
     /* -------------------- FETCH INVENTORY -------------------- */
 
-    let csv = "";
-    try {
-      const response = await fetch(
-        const response = await fetch(
- "https://docs.google.com/spreadsheets/d/1ktQ7AeuVQRtMNqO0_RLUCaOAaxeGKU5eCh2aqdlwRHs/export?format=csv&gid=1805316314";
+/* -------------------- FETCH INVENTORY -------------------- */
 
-);
+let csv = "";
 
-      );
-      csv = await response.text();
-    } catch (err) {
-      return res.status(500).json({
-        available: false,
-        message: "Inventory service temporarily unavailable"
-      });
-    }
+try {
+  const response = await fetch(
+    "https://docs.google.com/spreadsheets/d/1ktQ7AeuVQRtMNqO0_RLUCaOAaxeGKU5eCh2aqdlwRHs/export?format=csv&gid=1805316314"
+  );
+
+  csv = await response.text();
+} catch (err) {
+  console.error("CSV Fetch Error:", err);
+  return res.status(500).json({
+    available: false,
+    message: "Inventory service temporarily unavailable"
+  });
+}
+
 
     /* -------------------- PARSE CSV -------------------- */
 
