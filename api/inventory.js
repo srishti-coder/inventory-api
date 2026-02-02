@@ -39,7 +39,10 @@ export default async function handler(req, res) {
     let csv = "";
     try {
       const response = await fetch(
-        "https://docs.google.com/spreadsheets/d/1Q1CAOfaCQeNrYWkZ9XfSoz71N3P7fG-mfGrQ7zsiYiY/export?format=csv&gid=1640780709"
+        const response = await fetch(
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRruBQB-x5T4oK9cWzM4JgAaMY64L06cLfXhObAC_AhzoV2-FXHWlPPU2EnBk6paBPxL5hr0ZIqTIR-/pub?output=csv"
+);
+
       );
       csv = await response.text();
     } catch (err) {
