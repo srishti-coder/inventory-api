@@ -2,9 +2,8 @@ export default async function handler(req, res) {
   try {
     let { gender = "", age = "", design = "" } = req.query;
 
-    /* -------------------- HELPERS -------------------- */
+    /* ---------- HELPERS ---------- */
 
-    // Clean incoming values (WA often sends weird chars)
     const clean = (v) =>
       String(v ?? "")
         .trim()
@@ -23,42 +22,31 @@ export default async function handler(req, res) {
     age = clean(age);
     design = clean(design);
 
-    /* -------------------- AGE NORMALIZATION -------------------- */
+    /* ---------- AGE NORMALIZATION ---------- */
 
-    // Accept: "2-4", "2–4", "2 to 4", "2 - 4"
- let ageMatch = null;
+    let ageMatch = null;
+    if (age) {
+      ageMatch = age.match(/(\d+)\s*(?:to|[-–—])\s*(\d+)/i);
+    }
+    if (ageMatch) {
+      age = `${ageMatch[1]}-${ageMatch[2]} years`;
+    }
 
-if (typeof age === "string" && age.trim() !== "") {
-  ageMatch = age.match(/(\d+)\s*(?:to|[-–—])\s*(\d+)/i);
-}
+    /* ---------- FETCH INVENTORY ---------- */
 
-if (ageMatch) {
-  age = `${ageMatch[1]}-${ageMatch[2]} years`;
-}
+    let csv = "";
+    try {
+      const response = await fetch(
+        "https://docs.google.com/spreadsheets/d/1ktQ7AeuVQRtMNqO0_RLUCaOAaxeGKU5eCh2aqdlwRHs/export?format=csv&gid=1805316314"
+      );
+      csv = await response.text();
+    } catch (err) {
+      return res.json({
+        message: "Sorry 😔 Inventory service is temporarily unavailable."
+      });
+    }
 
-
-    /* -------------------- FETCH INVENTORY -------------------- */
-
-/* -------------------- FETCH INVENTORY -------------------- */
-
-let csv = "";
-
-try {
-  const response = await fetch(
-    "https://docs.google.com/spreadsheets/d/1ktQ7AeuVQRtMNqO0_RLUCaOAaxeGKU5eCh2aqdlwRHs/export?format=csv&gid=1805316314"
-  );
-
-  csv = await response.text();
-} catch (err) {
-  console.error("CSV Fetch Error:", err);
-  return res.status(500).json({
-    available: false,
-    message: "Inventory service temporarily unavailable"
-  });
-}
-
-
-    /* -------------------- PARSE CSV -------------------- */
+    /* ---------- PARSE CSV ---------- */
 
     const lines = csv
       .split("\n")
@@ -67,8 +55,7 @@ try {
 
     if (lines.length < 2) {
       return res.json({
-        available: false,
-        message: "Inventory data is empty"
+        message: "Sorry 😔 Inventory data is empty."
       });
     }
 
@@ -81,58 +68,63 @@ try {
       return obj;
     });
 
-    /* -------------------- FILTER BY AGE + GENDER -------------------- */
+    /* ---------- FILTER AGE + GENDER ---------- */
 
-    const ageGenderRows = rows.filter(
+    const filtered = rows.filter(
       (r) =>
         normalize(r.Gender) === normalize(gender) &&
         normalize(r.Age) === normalize(age)
     );
 
-    if (ageGenderRows.length === 0) {
+    if (!filtered.length) {
       return res.json({
-        available: false,
-        message: `No pieces available for ${gender} aged ${age}`
+        message: `Sorry 😔 No pieces available for ${gender} aged ${age}.`
       });
     }
 
-    /* -------------------- DESIGN FILTER (OPTIONAL) -------------------- */
+    /* ---------- DESIGN FILTER ---------- */
 
     if (design) {
-      const designRow = ageGenderRows.find(
+      const row = filtered.find(
         (r) => normalize(r.Design) === normalize(design)
       );
 
-      if (!designRow) {
+      if (!row) {
         return res.json({
-          available: false,
-          message: `Design ${design} is not available for ${gender} aged ${age}`
+          message: `Sorry 😔 Design ${design} is not available for ${gender} aged ${age}.`
         });
       }
 
+      const qty = Number(row.Quantity) || 0;
+
       return res.json({
-        available: true,
-        quantity: Number(designRow.Quantity) || 0,
-        designs: [designRow.Design]
+        message:
+          qty > 0
+            ? `Yes 😊 Design ${design} is available for ${gender} aged ${age}. Available quantity: ${qty} pieces.`
+            : `Sorry 😔 Design ${design} is currently out of stock for ${gender} aged ${age}.`
       });
     }
 
-    /* -------------------- NO DESIGN → RETURN ALL -------------------- */
+    /* ---------- NO DESIGN ---------- */
+
+    const totalQty = filtered.reduce(
+      (sum, r) => sum + (Number(r.Quantity) || 0),
+      0
+    );
 
     return res.json({
-      available: true,
-      designs: ageGenderRows.map((r) => r.Design),
-      quantity: ageGenderRows.reduce(
-        (sum, r) => sum + (Number(r.Quantity) || 0),
-        0
-      )
+      message:
+        totalQty > 0
+          ? `Yes 😊 ${gender} (${age}) designs are available. Total quantity: ${totalQty} pieces.`
+          : `Sorry 😔 No stock available for ${gender} aged ${age}.`
     });
   } catch (err) {
-    console.error("Inventory API Error:", err);
-    return res.status(500).json({
-      available: false,
-      message: "Unexpected server error"
+    console.error(err);
+    return res.json({
+      message: "Unexpected server error 😔 Please try again later."
     });
   }
 }
+
+
 
