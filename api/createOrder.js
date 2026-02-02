@@ -17,7 +17,7 @@ export default async function handler(req, res) {
 
     const orderId = "ORD-" + Date.now();
 
-    const SHEET_WEBHOOK_URL = "https://docs.google.com/spreadsheets/d/1ktQ7AeuVQRtMNqO0_RLUCaOAaxeGKU5eCh2aqdlwRHs/export?format=csv&gid=1805316314";
+    const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycby8VkOoi3LI5nYzydIzpP1ynj_1LF3JaQr2sEgexI2_iE09UgdE2Z1fMvOHHgon-hn6eQ/exec";
 
     await fetch(SHEET_WEBHOOK_URL, {
       method: "POST",
